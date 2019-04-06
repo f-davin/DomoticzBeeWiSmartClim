@@ -33,6 +33,13 @@
     </description>
     <params>
         <param field="Mode1" label="MAC address" required="true" default="XX:XX:XX:XX:XX:XX" width="200px" />
+        <param field="Mode6" label="Debug" width="100px">
+            <options>
+                <option label="True" value="Debug"/>
+                <option label="False" value="Normal"  default="true" />
+                <option label="Logging" value="File"/>
+            </options>
+        </param>
     </params>
 </plugin>
 """
@@ -40,6 +47,8 @@
 import Domoticz
 
 class BasePlugin:
+    enabled = False
+
     # boolean: to check that we are started, to prevent error messages when disabling or restarting the plugin
     isStarted = None
 
@@ -55,7 +64,7 @@ class BasePlugin:
     # boolean: debug mode
     iDebugLevel = None
 
-    enabled = False
+    
 
 
 
@@ -92,6 +101,15 @@ class BasePlugin:
         Devices[self.iIndexUnit].Update(nValue=0, sValue=sValue, Type=self.iType, Subtype=self.iSubType, Switchtype=self.iSwitchType,)
         return True
 
+    # Update value shown on Domoticz dashboard
+    def updateDevice(self, usage):
+        if not self.createDevice():
+            return False
+        # -1.0 for counter because Linky doesn't provide absolute counter value via Enedis website
+        sValue="-1.0;"+ str(usage)
+        self.myDebug("Mets sur le tableau de bord la valeur " + sValue)
+        Devices[self.iIndexUnit].Update(nValue=0, sValue=sValue, Type=self.iType, Subtype=self.iSubType, Switchtype=self.iSwitchType)
+        return True
 
     def onStart(self):
         Domoticz.Log("onStart called")
