@@ -33,11 +33,11 @@
     </description>
     <params>
         <param field="Mode1" label="MAC address" required="true" default="XX:XX:XX:XX:XX:XX" width="200px" />
+        <param field="Mode2" label="Time between to measures in minuts" width="50px" required="true" default="15"/>
         <param field="Mode6" label="Debug" width="100px">
             <options>
                 <option label="True" value="Debug"/>
                 <option label="False" value="Normal"  default="true" />
-                <option label="Logging" value="File"/>
             </options>
         </param>
     </params>
@@ -45,88 +45,53 @@
 """
 
 import Domoticz
+from builtins import str
+from builtins import chr
+import os
+import sys
+from subprocess import call, check_output, STDOUT
+import time
 
 class BasePlugin:
     enabled = False
 
-    # boolean: to check that we are started, to prevent error messages when disabling or restarting the plugin
-    isStarted = None
+    # Delay in minutes between two measures
+    iDelayInMin = 1
+    # Defaukt delay in minutes between two measures
+    iDefaultDelayInMin = 15
 
-    # string: name of the Linky device
-    sDeviceName = "SmartClim"
-
-    # string: description of the Linky device
-    sDescription = "Capteur SmartClim"
-
-    # string: typename
-    sTypename = "Temp+Hum"
-
-    # boolean: debug mode
-    iDebugLevel = None
-
-    
-
-
+    def setNextMeasure(self):
+        self.nextMeasure = datetime.now() + timedelta(minutes=self.iDelayInMin) 
 
 
     def __init__(self):
-        self.isStarted = False
+        return
 
-    def myDebug(self, message):
-        if self.iDebugLevel:
-            Domoticz.Log(message)
-
-     # ask data to the device
-    def getData(self, resource_id, start_date, end_date, ):
-        Domoticz.Log(resource_id + " " + str(end_date))
-
-    # Create Domoticz device
-    def createDevice(self):
-        # Only if not already done
-        if not self.iIndexUnit in Devices:
-            Domoticz.Device(Name=self.sDeviceName,  Unit=self.iIndexUnit, TypeName=sTypename, Description=self.sDescription).Create()
-            if not (self.iIndexUnit in Devices):
-                Domoticz.Error("Ne peut ajouter le dispositif Linky � la base de donn�es. V�rifiez dans les param�tres de Domoticz que l'ajout de nouveaux dispositifs est autoris�")
-                return False
-            Domoticz.Log("Devices created.")
-        return True
-
-    # Create device and insert usage in Domoticz DB
-    def createAndAddToDevice(self, usage, Date):
-        if not self.createDevice():
-            return False
-        # -1.0 for counter because Linky doesn't provide absolute counter value via Enedis website
-        sValue = "-1.0;"+ str(usage) + ";"  + str(Date)
-        self.myDebug("Mets dans la BDD la valeur " + sValue)
-        Devices[self.iIndexUnit].Update(nValue=0, sValue=sValue, Type=self.iType, Subtype=self.iSubType, Switchtype=self.iSwitchType,)
-        return True
-
-    # Update value shown on Domoticz dashboard
-    def updateDevice(self, usage):
-        if not self.createDevice():
-            return False
-        # -1.0 for counter because Linky doesn't provide absolute counter value via Enedis website
-        sValue="-1.0;"+ str(usage)
-        self.myDebug("Mets sur le tableau de bord la valeur " + sValue)
-        Devices[self.iIndexUnit].Update(nValue=0, sValue=sValue, Type=self.iType, Subtype=self.iSubType, Switchtype=self.iSwitchType)
-        return True
 
     def onStart(self):
         Domoticz.Log("onStart called")
-        # TODO Verification of parameters
+        # Check if debug mmode is active
+        if Parameters["Mode6"] == "Debug":
+            Domoticz.Debugging(1)
+        if (len(Devices) == 0):
+            Domoticz.Device(Name="SmartClim",  Unit=1, TypeName="Temp+Hum", Description="Capteur SmartClim").Create()
+            Domoticz.Log("Device created.")
+        Domoticz.Log("Plugin has " + str(len(Devices)) + " devices associated with it.")
+        DumpConfigToLog()
 
-        self.__init__()
-
-        if self.createDevice():
-            self.nextConnection = datetime.now()
-        self.isStarted = True
-
+        # Update the delay between the measures
+        try:
+            self.iDelayInMin = int(Parameters["Mode2"])
+        except ValueError:
+            self.iDelayInMin = self.iDefaultDelayInMin
+        Domoticz.Log("Delay between measures " + str(self.iDelayInMin) + " minuts.")
+        Devices[0].Update(nValue=Devices[Device].nValue, sValue=Devices[Device].sValue, TimedOut=1)
+        Domoticz.Log("Leaving on start")
 
 
 
     def onStop(self):
         Domoticz.Log("onStop called")
-        self.isStarted = False
 
     def onConnect(self, Connection, Status, Description):
         Domoticz.Log("onConnect called")
@@ -145,6 +110,20 @@ class BasePlugin:
 
     def onHeartbeat(self):
         Domoticz.Log("onHeartbeat called")
+        if datetime.now() > self.nextMeasure:
+            # We immediatly program next connection for tomorrow, if there is a problem, we will reprogram it sooner
+            self.setNextMeasure()
+            self.onGetSmartClimValues()
+
+
+    def onGetSmartClimValues(self):
+        ## TODO get values
+        UpdateDevice(0, "10;45%", 127)
+
+    def UpdateDevice(nValue, sValue, batteryLevel):
+        Devices[0].Update(nValue=nValue, sValue=str(sValue), BatteryLevel=batteryLevel)
+        Domoticz.Log("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[0].Name+")")
+
 
 global _plugin
 _plugin = BasePlugin()
@@ -181,7 +160,17 @@ def onHeartbeat():
     global _plugin
     _plugin.onHeartbeat()
 
-    # Generic helper functions
+# Generic helper functions
+def LogMessage(Message):
+    if Parameters["Mode6"] != "Normal":
+        Domoticz.Log(Message)
+    elif Parameters["Mode6"] != "Debug":
+        Domoticz.Debug(Message)
+    else:
+        f = open("http.html","w")
+        f.write(Message)
+        f.close()   
+
 def DumpConfigToLog():
     for x in Parameters:
         if Parameters[x] != "":
