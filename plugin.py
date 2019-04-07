@@ -47,21 +47,27 @@
 import Domoticz
 from datetime import datetime
 from datetime import timedelta
+#import pydevd_pycharm
 import time
 from builtins import str
 from builtins import chr
 import os
 import sys
 from subprocess import call, check_output, STDOUT
-import time
+
+#pydevd_pycharm.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
 class BasePlugin:
     enabled = False
 
     # Delay in minutes between two measures
     iDelayInMin = 1
-    # Defaukt delay in minutes between two measures
-    iDefaultDelayInMin = 15
+    # Default delay in minutes between two measures
+    iDefaultDelayInMin = 1
+    # date time of the next measure
+    nextMeasure = datetime.now()
+    # Index of the device
+    iUnit = 1
 
     def setNextMeasure(self):
         self.nextMeasure = datetime.now() + timedelta(minutes=self.iDelayInMin) 
@@ -76,11 +82,15 @@ class BasePlugin:
         # Check if debug mmode is active
         if Parameters["Mode6"] == "Debug":
             Domoticz.Debugging(1)
+            Domoticz.Log("Debugger started, use 'telnet 0.0.0.0 4444' to connect")
+            #import rpdb
+            #rpdb.set_trace()
         if (len(Devices) == 0):
-            Domoticz.Device(Name="SmartClim",  Unit=1, TypeName="Temp+Hum", Description="Capteur SmartClim").Create()
+            Domoticz.Device(Name="SmartClim",  Unit=iUnit, TypeName="Temp+Hum", Subtype=1, Switchtype=0, Description="Capteur SmartClim", Used=1).Create()
             Domoticz.Log("Device created.")
         Domoticz.Log("Plugin has " + str(len(Devices)) + " devices associated with it.")
         DumpConfigToLog()
+        Domoticz.Heartbeat(30)
 
         # Update the delay between the measures
         try:
@@ -88,7 +98,14 @@ class BasePlugin:
         except ValueError:
             self.iDelayInMin = self.iDefaultDelayInMin
         Domoticz.Log("Delay between measures " + str(self.iDelayInMin) + " minuts.")
-        Devices[0].Update(nValue=Devices[Device].nValue, sValue=Devices[Device].sValue, TimedOut=1)
+        Domoticz.Log("")
+        Domoticz.Log("")
+        for device in Devices:
+            Domoticz.Log("Device:" + str(device))
+        Domoticz.Log("")
+        Domoticz.Log("")
+               
+        #Devices[self.iUnit].Update(nValue=Devices[self.iUnit].nValue, sValue=Devices[self.iUnit].sValue, TimedOut=1)
         Domoticz.Log("Leaving on start")
 
 
@@ -121,11 +138,12 @@ class BasePlugin:
 
     def onGetSmartClimValues(self):
         ## TODO get values
-        UpdateDevice(0, "10;45%", 127)
+        self.updateDevice(0, "10.0;45;1", 127)
 
-    def UpdateDevice(nValue, sValue, batteryLevel):
-        Devices[0].Update(nValue=nValue, sValue=str(sValue), BatteryLevel=batteryLevel)
-        Domoticz.Log("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[0].Name+")")
+    def updateDevice(self, nValue, sValue, batteryLevel):
+        Devices[self.iUnit].Update(nValue=0, sValue=str(sValue), TypeName="Temp+Hum", BatteryLevel=batteryLevel)
+        Domoticz.Log("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[self.iUnit].Name+")")
+        Domoticz.Log(Devices[self.iUnit].sValue + "     " + str(Devices[self.iUnit].BatteryLevel))
 
 
 global _plugin
