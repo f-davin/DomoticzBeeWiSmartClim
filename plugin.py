@@ -47,15 +47,12 @@
 import Domoticz
 from datetime import datetime
 from datetime import timedelta
-#import pydevd_pycharm
 import time
 from builtins import str
 from builtins import chr
 import os
 import sys
 from subprocess import call, check_output, STDOUT
-
-#pydevd_pycharm.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
 class BasePlugin:
     enabled = False
@@ -72,10 +69,8 @@ class BasePlugin:
     def setNextMeasure(self):
         self.nextMeasure = datetime.now() + timedelta(minutes=self.iDelayInMin) 
 
-
     def __init__(self):
         return
-
 
     def onStart(self):
         Domoticz.Log("onStart called")
@@ -98,16 +93,7 @@ class BasePlugin:
         except ValueError:
             self.iDelayInMin = self.iDefaultDelayInMin
         Domoticz.Log("Delay between measures " + str(self.iDelayInMin) + " minuts.")
-        Domoticz.Log("")
-        Domoticz.Log("")
-        for device in Devices:
-            Domoticz.Log("Device:" + str(device))
-        Domoticz.Log("")
-        Domoticz.Log("")
-               
-        #Devices[self.iUnit].Update(nValue=Devices[self.iUnit].nValue, sValue=Devices[self.iUnit].sValue, TimedOut=1)
         Domoticz.Log("Leaving on start")
-
 
 
     def onStop(self):
@@ -141,9 +127,8 @@ class BasePlugin:
         self.updateDevice(0, "10.0;45;1", 127)
 
     def updateDevice(self, nValue, sValue, batteryLevel):
-        Devices[self.iUnit].Update(nValue=0, sValue=str(sValue), TypeName="Temp+Hum", BatteryLevel=batteryLevel)
+        Devices[self.iUnit].Update(nValue=0, sValue=str(sValue), BatteryLevel=batteryLevel)
         Domoticz.Log("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[self.iUnit].Name+")")
-        Domoticz.Log(Devices[self.iUnit].sValue + "     " + str(Devices[self.iUnit].BatteryLevel))
 
 
 global _plugin
