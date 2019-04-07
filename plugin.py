@@ -45,6 +45,9 @@
 """
 
 import Domoticz
+from datetime import datetime
+from datetime import timedelta
+import time
 from builtins import str
 from builtins import chr
 import os
