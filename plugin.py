@@ -65,6 +65,10 @@ class BasePlugin:
     nextMeasure = datetime.now()
     # Index of the device
     iUnit = 1
+    # Default HCI device
+    hci_device = 'hci0'
+    # MAC address of the device
+    device_address = "xx"
 
     def setNextMeasure(self):
         self.nextMeasure = datetime.now() + timedelta(minutes=self.iDelayInMin) 
@@ -75,6 +79,7 @@ class BasePlugin:
     def onStart(self):
         Domoticz.Log("onStart called")
         # Check if debug mmode is active
+        self.device_address = Parameters["Mode1"]
         if Parameters["Mode6"] == "Debug":
             Domoticz.Debugging(1)
             Domoticz.Log("Debugger started, use 'telnet 0.0.0.0 4444' to connect")
@@ -124,11 +129,37 @@ class BasePlugin:
 
     def onGetSmartClimValues(self):
         ## TODO get values
-        self.updateDevice(0, "10.0;45;1", 127)
+        temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
+        sValue = str(temperature) + ";" + str(humidity) + ";1"
+        self.updateDevice(0, sValue, battery)
 
     def updateDevice(self, nValue, sValue, batteryLevel):
         Devices[self.iUnit].Update(nValue=0, sValue=str(sValue), BatteryLevel=batteryLevel)
         Domoticz.Log("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[self.iUnit].Name+")")
+
+    def getActualValues(self, s_hci, s_mac) :
+        # read the value characteristic (read handle is 0x003f)
+        # handle returns 10 byte hex block containing temperature, humidity and batery level
+        # the temperature consists of 3 bytes
+        # Posivive value: byte 1 & 2 present the tenfold of the temperature
+        # Negative value: byte 2 - byte 3 present the tenfold of the temperature
+        raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle=0x003f']);
+        if ':' in str(raw_input):
+            raw_list    = str(raw_input).split(':')
+            raw_data    = raw_list[1].split('\\n')[0]
+            raw_data    = raw_data.strip()
+            octet_list  = raw_data.split(' ')
+            t0 = int(octet_list[0], 16)
+            t1 = int(octet_list[1], 16)
+            t2 = int(octet_list[2], 16)
+            if t2 == 255:
+                temperature = (t1-t2)/10.0
+            else:
+                temperature = ((t0*255)+t1)/10.0
+            humidity    = int(octet_list[4], 16)
+            battery     = int(octet_list[9], 16)
+        return (temperature, humidity, battery)
+
 
 
 global _plugin
