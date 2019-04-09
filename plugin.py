@@ -60,7 +60,7 @@ class BasePlugin:
     # Delay in minutes between two measures
     iDelayInMin = 1
     # Default delay in minutes between two measures
-    iDefaultDelayInMin = 1
+    iDefaultDelayInMin = 15
     # date time of the next measure
     nextMeasure = datetime.now()
     # Index of the device
@@ -89,6 +89,7 @@ class BasePlugin:
             Domoticz.Device(Name="SmartClim",  Unit=iUnit, TypeName="Temp+Hum", Subtype=1, Switchtype=0, Description="Capteur SmartClim", Used=1).Create()
             Domoticz.Log("Device created.")
         Domoticz.Log("Plugin has " + str(len(Devices)) + " devices associated with it.")
+        Devices[self.iUnit].Update(nValue=0, sValue="20.0;50", TypeName="Temp+Hum")
         DumpConfigToLog()
         Domoticz.Heartbeat(30)
 
