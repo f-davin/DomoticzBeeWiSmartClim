@@ -89,7 +89,8 @@ class BasePlugin:
             Domoticz.Device(Name="SmartClim",  Unit=self.iUnit, TypeName="Temp+Hum", Subtype=1, Switchtype=0, Description="Capteur SmartClim", Used=1).Create()
             Domoticz.Log("Device created.")
         Domoticz.Log("Plugin has " + str(len(Devices)) + " devices associated with it.")
-        Devices[self.iUnit].Update(nValue=0, sValue="20.0;50", TypeName="Temp+Hum")
+        temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
+        Devices[self.iUnit].Update(nValue=0, sValue= str(temperature) + ";" + str(humidity), TypeName="Temp+Hum")
         DumpConfigToLog()
         Domoticz.Heartbeat(30)
 
