@@ -19,7 +19,7 @@
 #
 
 """
-<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="Flo1987" version="0.1.0" externallink="https://github.com/Flo1987/DomoticzBeeWiSmartClim">
+<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="Flo1987" version="0.3.1" externallink="https://github.com/Flo1987/DomoticzBeeWiSmartClim">
     <description>
         <h2>BeeWi SmartClim</h2><br/>
         This plugin permits the following actions:
