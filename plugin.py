@@ -19,7 +19,7 @@
 #
 
 """
-<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="Flo1987" version="0.1.0" externallink="https://github.com/Flo1987/DomoticzBeeWiSmartClim">
+<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="Flo1987" version="0.3.1" externallink="https://github.com/Flo1987/DomoticzBeeWiSmartClim">
     <description>
         <h2>BeeWi SmartClim</h2><br/>
         This plugin permits the following actions:
@@ -89,6 +89,7 @@ class BasePlugin:
             Domoticz.Device(Name="SmartClim",  Unit=self.iUnit, TypeName="Temp+Hum", Subtype=1, Switchtype=0, Description="Capteur SmartClim", Used=1).Create()
             Domoticz.Log("Device created.")
         Domoticz.Log("Plugin has " + str(len(Devices)) + " devices associated with it.")
+        
         temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
         Devices[self.iUnit].Update(nValue=0, sValue= str(temperature) + ";" + str(humidity), TypeName="Temp+Hum")
         DumpConfigToLog()
@@ -101,7 +102,6 @@ class BasePlugin:
             self.iDelayInMin = self.iDefaultDelayInMin
         Domoticz.Log("Delay between measures " + str(self.iDelayInMin) + " minuts.")
         Domoticz.Log("Leaving on start")
-
 
     def onStop(self):
         Domoticz.Log("onStop called")
@@ -128,11 +128,10 @@ class BasePlugin:
             self.setNextMeasure()
             self.onGetSmartClimValues()
 
-
     def onGetSmartClimValues(self):
-        ## TODO get values
         temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
-        sValue = str(temperature) + ";" + str(humidity) + ";1"
+        humStat = self.getHumidityStatus(temperature, humidity)
+        sValue = str(temperature) + ";" + str(humidity) + ";" + str(humStat)
         self.updateDevice(0, sValue, battery)
 
     def updateDevice(self, nValue, sValue, batteryLevel):
@@ -162,7 +161,31 @@ class BasePlugin:
             battery     = int(octet_list[9], 16)
         return (temperature, humidity, battery)
 
-
+    def getHumidityStatus(self, temperature, humidity):
+        # Temprature in °C
+        # Humudity in %
+        c1 = −8.78469475556
+        c2 = 1.61139411
+        c3 = 2.33854883889
+        c4 = -0.14611605
+        c5 = -0.012308094
+        c6 = -0.0164248277778
+        c7 = 0.002211732
+        c8 = 0.00072546
+        c9 = -0.000003582
+        humStat = 0
+        
+        HI = c1 + c2 * temperature + c3 * humidity + c4 * temperature * humidity + c5 *(temperature*temperature) + c6 * (humidity * humidity) 
+        HI = HI + c7 * (temperature * temperature) * humidity + c8 * temperature * (humidity * humidity) + c9 * (temperature * temperature) * (humidity * humidity)
+        
+        if HI >= 27 and HI < 32:
+            humStat = 1
+        if HI >= 32 and HI < 41:
+            humStat = 2
+        if HI >= 41:
+            humStat = 3
+            
+        return humStat
 
 global _plugin
 _plugin = BasePlugin()
