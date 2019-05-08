@@ -82,7 +82,7 @@ class BasePlugin:
         self.device_address = Parameters["Mode1"]
         if Parameters["Mode6"] == "Debug":
             Domoticz.Debugging(1)
-            Domoticz.Log("Debugger started, use 'telnet 0.0.0.0 4444' to connect")
+            #Domoticz.Log("Debugger started, use 'telnet 0.0.0.0 4444' to connect")
             #import rpdb
             #rpdb.set_trace()
         if (len(Devices) == 0):

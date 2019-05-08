@@ -1,37 +1,41 @@
-## Welcome to GitHub Pages
+# Domoticz plugin for BeeeWi SmartClim
 
-You can use the [editor on GitHub](https://github.com/Flo1987/DomoticzBeeWiSmartClim/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+This plugin permit to get periodically the information about the temperature and humidity from the device SmartClim (BBW200 rev A1). All datas are stored in the log of temperature device.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
 
-### Markdown
+## Prerequisites
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+This plugin was tested in release 4.9701 (ou beta more recent).
+This plugin can be used only on linux OS (tested on Debian) and the following tools must be installed:
+* gatttool
+* hcitool
+* Bluetooth LE device compatible (Bluetooth 4.0 minimum)
 
-```markdown
-Syntax highlighted code block
+## Installation
 
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
+Place you in the subfolder *plugins* of domoticz folder and launch the following command:
+```
+git clone https://github.com/Flo1987/DomoticzBeeWiSmartClim.git BeeWiSmartClim
 ```
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+Enter in the folder:
+```
+cd BeeWiSmartClim
+```
 
-### Jekyll Themes
+Update the repository :
+```
+git pull
+```
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/Flo1987/DomoticzBeeWiSmartClim/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+Put the execution permission on the plugin file :
+```
+chmod ugo+x plugin.py
+```
 
-### Support or Contact
+Restart Domoticz.
 
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+## Licence
+
+This project is under the licence LGPLv3 - cf. fichier [LICENSE](LICENSE) pour plus de détails.
+
