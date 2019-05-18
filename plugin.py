@@ -19,7 +19,7 @@
 #
 
 """
-<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="Flo1987" version="0.3.1" externallink="https://github.com/Flo1987/DomoticzBeeWiSmartClim">
+<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="Flo1987" version="0.3.2" externallink="https://github.com/Flo1987/DomoticzBeeWiSmartClim">
     <description>
         <h2>BeeWi SmartClim</h2><br/>
         This plugin permits the following actions:
@@ -164,7 +164,7 @@ class BasePlugin:
     def getHumidityStatus(self, temperature, humidity):
         # Temprature in °C
         # Humudity in %
-        c1 = −8.78469475556
+        c1 = -8.78469475556
         c2 = 1.61139411
         c3 = 2.33854883889
         c4 = -0.14611605
