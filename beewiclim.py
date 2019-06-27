@@ -63,7 +63,7 @@ def getActualValues(s_hci, s_mac) :
    # the temperature consists of 3 bytes
    # Posivive value: byte 1 & 2 present the tenfold of the temperature
    # Negative value: byte 2 - byte 3 present the tenfold of the temperature
-   raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle=0x003f']);
+   raw_input = check_output(['gatttool', '-i', '"' + s_hci + '"', '-b', '"' + s_mac + '"', '--char-read', '--handle=0x003f']);
    if ':' in str(raw_input):
       raw_list    = str(raw_input).split(':')
       raw_data    = raw_list[1].split('\\n')[0]
