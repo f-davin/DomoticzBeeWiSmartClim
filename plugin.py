@@ -52,7 +52,8 @@ from builtins import str
 from builtins import chr
 import os
 import sys
-from subprocess import call, check_output, STDOUT, CalledProcessError
+import subprocess
+from subprocess import call, check_output, STDOUT
 
 class BasePlugin:
     enabled = False
@@ -145,7 +146,7 @@ class BasePlugin:
         # Posivive value: byte 1 & 2 present the tenfold of the temperature
         # Negative value: byte 2 - byte 3 present the tenfold of the temperature
         try:
-            raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle='+s_handle], shell=False, stderr=STDOUT);
+            raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle=0x003f'], shell=False, stderr=STDOUT);
         except subprocess.CalledProcessError as e:
             raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
         if ':' in str(raw_input):
