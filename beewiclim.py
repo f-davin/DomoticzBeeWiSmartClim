@@ -32,7 +32,7 @@ from builtins import str
 from builtins import chr
 import os
 import sys
-from subprocess import call, check_output, STDOUT
+from subprocess import call, check_output, STDOUT, CalledProcessError
 import time
 
 def cycleHCI(s_hci) :
@@ -45,7 +45,10 @@ def cycleHCI(s_hci) :
 
 def getResultStringForDeviceMacHandle(s_hci, s_mac, s_handle) :
    # Read the string from handle
-   raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle='+s_handle], shell=False, stderr=STDOUT);
+   try:
+      raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle='+s_handle], shell=False, stderr=STDOUT);
+   except subprocess.CalledProcessError as e:
+      raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
    result_string = ''
    if ':' in str(raw_input):
       raw_list=str(raw_input).split(':')
@@ -63,7 +66,7 @@ def getActualValues(s_hci, s_mac) :
    # the temperature consists of 3 bytes
    # Posivive value: byte 1 & 2 present the tenfold of the temperature
    # Negative value: byte 2 - byte 3 present the tenfold of the temperature
-   raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle=0x003f']);
+   raw_input = check_output(['gatttool', '-i', '"' + s_hci + '"', '-b', '"' + s_mac + '"', '--char-read', '--handle=0x003f']);
    if ':' in str(raw_input):
       raw_list    = str(raw_input).split(':')
       raw_data    = raw_list[1].split('\\n')[0]
