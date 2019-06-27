@@ -52,7 +52,7 @@ from builtins import str
 from builtins import chr
 import os
 import sys
-from subprocess import call, check_output, STDOUT
+from subprocess import call, check_output, STDOUT, CalledProcessError
 
 class BasePlugin:
     enabled = False
