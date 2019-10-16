@@ -131,7 +131,7 @@ class BasePlugin:
                 self.onGetSmartClimValues()
             except:
                 Domoticz.Log("Restart the Bluetooth device")
-                Domoticz.cycleHci(self.hci_device)
+                self.cycleHci()
                 Domoticz.Log("Bluetooth device restarted")
 
     def onGetSmartClimValues(self):
@@ -192,6 +192,14 @@ class BasePlugin:
             humStat = 3
             
         return humStat
+    
+    def cycleHci() :
+       # maybe a useless time waster but it makes sure our hci is starting fresh and clean
+       # nope in fact we need to call this before each time we do hci or gatt stuff or it doesn't work
+       call(['hciconfig', self.hci_device, 'down'])
+       time.sleep(0.1)
+       call(['hciconfig', self.hci_device, 'up'])
+       time.sleep(0.1)
 
 global _plugin
 _plugin = BasePlugin()
@@ -253,10 +261,3 @@ def DumpConfigToLog():
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
     return
 
-def cycleHci(s_hci) :
-   # maybe a useless time waster but it makes sure our hci is starting fresh and clean
-   # nope in fact we need to call this before each time we do hci or gatt stuff or it doesn't work
-   call(['hciconfig', 's_hci', 'down'])
-   time.sleep(0.1)
-   call(['hciconfig', 's_hci', 'up'])
-   time.sleep(0.1)
