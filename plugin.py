@@ -19,7 +19,7 @@
 #
 
 """
-<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="DavTechNet" version="0.3.4" externallink="https://github.com/DavTechNet/DomoticzBeeWiSmartClim">
+<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="DavTechNet" version="0.4.0" externallink="https://github.com/DavTechNet/DomoticzBeeWiSmartClim">
     <description>
         <h2>BeeWi SmartClim</h2><br/>
         This plugin permits the following actions:
@@ -126,8 +126,13 @@ class BasePlugin:
         Domoticz.Log("onHeartbeat called")
         if datetime.now() > self.nextMeasure:
             # We immediatly program next connection for tomorrow, if there is a problem, we will reprogram it sooner
-            self.setNextMeasure()
-            self.onGetSmartClimValues()
+            try:
+                self.setNextMeasure()
+                self.onGetSmartClimValues()
+            except:
+                Domoticz.Log("Restart the Bluetooth device")
+                Domoticz.cycleHci(self.hci_device)
+                Domoticz.Log("Bluetooth device restarted")
 
     def onGetSmartClimValues(self):
         temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
@@ -247,3 +252,11 @@ def DumpConfigToLog():
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
     return
+
+def cycleHci(s_hci) :
+   # maybe a useless time waster but it makes sure our hci is starting fresh and clean
+   # nope in fact we need to call this before each time we do hci or gatt stuff or it doesn't work
+   call(['hciconfig', 's_hci', 'down'])
+   time.sleep(0.1)
+   call(['hciconfig', 's_hci', 'up'])
+   time.sleep(0.1)
