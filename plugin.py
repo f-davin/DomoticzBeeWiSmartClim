@@ -1,7 +1,7 @@
 #           Beewi SmartClim Plugin
 #
 #           Author: 
-#                       Copyright (C) 2019 Flo1987
+#                       Copyright (C) 2019 DavTechNet
 #
 # 
 # This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 #
 
 """
-<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="DavTechNet" version="0.4.1" externallink="https://github.com/DavTechNet/DomoticzBeeWiSmartClim">
+<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="DavTechNet" version="0.4.3" externallink="https://github.com/DavTechNet/DomoticzBeeWiSmartClim">
     <description>
         <h2>BeeWi SmartClim</h2><br/>
         This plugin permits the following actions:
@@ -91,8 +91,13 @@ class BasePlugin:
             Domoticz.Log("Device created.")
         Domoticz.Log("Plugin has " + str(len(Devices)) + " devices associated with it.")
         
-        temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
-        Devices[self.iUnit].Update(nValue=0, sValue= str(temperature) + ";" + str(humidity), TypeName="Temp+Hum")
+        try:
+            temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
+            Devices[self.iUnit].Update(nValue=0, sValue= str(temperature) + ";" + str(humidity), TypeName="Temp+Hum")
+            self.nextMeasure = datetime.now() + timedelta(minutes=random.randrange (1,self.iDelayInMin,1)) 
+        except (RuntimeError, NameError, TypeError) :
+            Domoticz.Log("Error")
+        
         DumpConfigToLog()
         Domoticz.Heartbeat(30)
 
@@ -130,9 +135,13 @@ class BasePlugin:
                 self.setNextMeasure()
                 self.onGetSmartClimValues()
             except:
-                Domoticz.Log("Restart the Bluetooth device")
-                self.cycleHci()
-                Domoticz.Log("Bluetooth device restarted")
+            
+                try:
+                    Domoticz.Log("Restart the Bluetooth device")
+                    self.cycleHci()
+                    Domoticz.Log("Bluetooth device restarted")
+                except:
+                    Domoticz.Log("Error on restart")
 
     def onGetSmartClimValues(self):
         temperature, humidity, battery = self.getActualValues(self.hci_device, self.device_address)
@@ -193,13 +202,14 @@ class BasePlugin:
             
         return humStat
     
-    def cycleHci() :
-       # maybe a useless time waster but it makes sure our hci is starting fresh and clean
-       # nope in fact we need to call this before each time we do hci or gatt stuff or it doesn't work
-       call(['hciconfig', self.hci_device, 'down'])
-       time.sleep(0.1)
-       call(['hciconfig', self.hci_device, 'up'])
-       time.sleep(0.1)
+    def cycleHci():
+        try:
+            call(['hciconfig', self.hci_device, 'down'])
+            time.sleep(0.1)
+            call(['hciconfig', self.hci_device, 'up'])
+            time.sleep(0.1)
+        except TypeError:
+            Domoticz.Log("Error on restart")
 
 global _plugin
 _plugin = BasePlugin()
