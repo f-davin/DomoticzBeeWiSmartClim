@@ -15,7 +15,7 @@ This plugin can be used only on linux OS (tested on Debian) and the following to
 
 Place you in the subfolder *plugins* of domoticz folder and launch the following command:
 ```
-git clone https://github.com/Flo1987/DomoticzBeeWiSmartClim.git BeeWiSmartClim
+git clone https://github.com/DavTechNet/DomoticzBeeWiSmartClim.git BeeWiSmartClim
 ```
 
 Enter in the folder:
