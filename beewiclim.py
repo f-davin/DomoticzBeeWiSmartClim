@@ -46,12 +46,7 @@ UUID_HARDWARE_REV = "00002a27-0000-1000-8000-00805f9b34fb"  # Handle 0X0021
 UUID_GET_VALUES = "a8b3fb43-4834-4051-89d0-3de95cddd318"  # Handle 0x003f
 
 
-class SensorData ( ):
-    def __init__ ( self ):
-        self.__temperature = 0.0
-        self.__humidity = 0
-        self.__battery = 0
-
+class SensorData:
     def __init__ ( self, raw_data: bytearray ):
         self.__temperature = 0.0
         self.__humidity = 0
@@ -120,31 +115,29 @@ async def exec ( argv ):
                     )
         elif VAL_COMMAND in command:
             print ( '-------------------------------------' )
-            degree: str = u'\u2103'.encode ( "utf-8" )
-            print ( 'Temperature       = ' + str ( current_values.get_temperature ( ) ) + degree )
-            print ( 'Humidity          = ' + str ( current_values.get_humidity ( ) ) + '%' )
-            print ( 'Battery           = ' + str ( current_values.get_battery_level ( ) ) + '%' )
+            print ( 'Temperature       = {0} {1}'.format ( str ( current_values.get_temperature ( ) ), u'\u2103' ) )
+            print ( 'Humidity          = {0}%'.format ( str ( current_values.get_humidity ( ) ) ) )
+            print ( 'Battery           = {0}%'.format ( str ( current_values.get_battery_level ( ) ) ) )
             print ( '-------------------------------------' )
         else:
             manufacturer = await client.read_gatt_char ( UUID_MANUFACTURER_NAME )
             model = await client.read_gatt_char ( UUID_MODEL )
             serial = await client.read_gatt_char ( UUID_SERIAL_NUMBER )
-            frevision = await client.read_gatt_char ( UUID_FIRMWARE_REV )
-            hrevision = await client.read_gatt_char ( UUID_HARDWARE_REV )
-            srevision = await client.read_gatt_char ( UUID_SOFTWARE_REV )
-            degree: str = u'\u2103'.encode ( "utf-8" )
+            fw_revision = await client.read_gatt_char ( UUID_FIRMWARE_REV )
+            hw_revision = await client.read_gatt_char ( UUID_HARDWARE_REV )
+            soft_revision = await client.read_gatt_char ( UUID_SOFTWARE_REV )
             print ( '-------------------------------------' )
             # print ( 'Device name       = ' + name )
-            print ( 'Model number      = ' + model )
-            print ( 'Serial number     = ' + serial )
-            print ( 'Firmware revision = ' + frevision )
-            print ( 'Hardware revision = ' + hrevision )
-            print ( 'Software revision = ' + srevision )
-            print ( 'Manufacturer      = ' + manufacturer )
+            print ( 'Model number      = {0}'.format ( model.decode ( 'utf-8' ) ) )
+            print ( 'Serial number     = {0}'.format ( serial.decode ( 'utf-8' ) ) )
+            print ( 'Firmware revision = {0}'.format ( fw_revision.decode ( 'utf-8' ) ) )
+            print ( 'Hardware revision = {0}'.format ( hw_revision.decode ( 'utf-8' ) ) )
+            print ( 'Manufacturer      = {0}'.format ( manufacturer.decode ( 'utf-8' ) ) )
+            print ( 'Software revision = {0}'.format ( soft_revision.decode ( 'utf-8' ) ) )
             print ( '-------------------------------------' )
-            print ( 'Temperature       = ' + str ( current_values.get_temperature ( ) ) + degree )
-            print ( 'Humidity          = ' + str ( current_values.get_humidity ( ) ) + '%' )
-            print ( 'Battery           = ' + str ( current_values.get_battery_level ( ) ) + '%' )
+            print ( 'Temperature       = {0} {1}'.format ( str ( current_values.get_temperature ( ) ), u'\u2103' ) )
+            print ( 'Humidity          = {0}%'.format ( str ( current_values.get_humidity ( ) ) ) )
+            print ( 'Battery           = {0}%'.format ( str ( current_values.get_battery_level ( ) ) ) )
             print ( '-------------------------------------' )
 
 
