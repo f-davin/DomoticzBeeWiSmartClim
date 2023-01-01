@@ -19,7 +19,7 @@
 #
 
 """
-<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="DavTechNet" version="0.4.3" externallink="https://github.com/DavTechNet/DomoticzBeeWiSmartClim">
+<plugin key="BeewiSmartClim" name="BeeWi SmartClim" author="DavTechNet" version="0.5.0" externallink="https://github.com/DavTechNet/DomoticzBeeWiSmartClim">
     <description>
         <h2>BeeWi SmartClim</h2><br/>
         This plugin permits the following actions:
@@ -49,9 +49,17 @@ import time
 from builtins import str
 from datetime import datetime
 from datetime import timedelta
+from enum import Enum, unique
 from subprocess import call, check_output, STDOUT
 
 import Domoticz
+
+
+@unique
+class LogLevel ( Enum ):
+    Notice = 0
+    Error = 1
+    Debug = 2
 
 
 class BasePlugin:
@@ -101,7 +109,7 @@ class BasePlugin:
         except (RuntimeError, NameError, TypeError):
             Domoticz.Log ( "Error" )
 
-        DumpConfigToLog ( )
+        dump_config_to_log ( )
         Domoticz.Heartbeat ( 30 )
 
         # Update the delay between the measures
@@ -272,27 +280,34 @@ def onHeartbeat ( ):
 
 
 # Generic helper functions
-def LogMessage ( Message ):
-    if Parameters [ "Mode6" ] != "Normal":
-        Domoticz.Log ( Message )
-    elif Parameters [ "Mode6" ] != "Debug":
-        Domoticz.Debug ( Message )
-    else:
-        f = open ( "http.html", "w" )
-        f.write ( Message )
-        f.close ( )
+def log_message ( level: LogLevel, message: str ):
+    """
+    Add a message in the log
+    :param level: Level of the message to log
+    :param message: Message to log
+    :return: Nothing
+    """
+    if level == LogLevel.Debug:
+        Domoticz.Debug ( message )
+    elif level == LogLevel.Error:
+        Domoticz.Error ( message )
+    elif level == LogLevel.Notice:
+        Domoticz.Log ( message )
 
 
-def DumpConfigToLog ( ):
+def dump_config_to_log ( ):
+    """
+    Copy the current configuration in the log at debug level
+    :return: Nothing
+    """
     for x in Parameters:
         if Parameters [ x ] != "":
-            Domoticz.Debug ( "'" + x + "':'" + str ( Parameters [ x ] ) + "'" )
-    Domoticz.Debug ( "Device count: " + str ( len ( Devices ) ) )
+            log_message ( LogLevel.Debug, "'" + x + "':'" + str ( Parameters [ x ] ) + "'" )
+    log_message ( LogLevel.Debug, "Device count: " + str ( len ( Devices ) ) )
     for x in Devices:
-        Domoticz.Debug ( "Device:           " + str ( x ) + " - " + str ( Devices [ x ] ) )
-        Domoticz.Debug ( "Device ID:       '" + str ( Devices [ x ].ID ) + "'" )
-        Domoticz.Debug ( "Device Name:     '" + Devices [ x ].Name + "'" )
-        Domoticz.Debug ( "Device nValue:    " + str ( Devices [ x ].nValue ) )
-        Domoticz.Debug ( "Device sValue:   '" + Devices [ x ].sValue + "'" )
-        Domoticz.Debug ( "Device LastLevel: " + str ( Devices [ x ].LastLevel ) )
-    return
+        log_message ( LogLevel.Debug, "Device:           " + str ( x ) + " - " + str ( Devices [ x ] ) )
+        log_message ( LogLevel.Debug, "Device ID:       '" + str ( Devices [ x ].ID ) + "'" )
+        log_message ( LogLevel.Debug, "Device Name:     '" + Devices [ x ].Name + "'" )
+        log_message ( LogLevel.Debug, "Device nValue:    " + str ( Devices [ x ].nValue ) )
+        log_message ( LogLevel.Debug, "Device sValue:   '" + Devices [ x ].sValue + "'" )
+        log_message ( LogLevel.Debug, "Device LastLevel: " + str ( Devices [ x ].LastLevel ) )
