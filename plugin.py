@@ -1,4 +1,4 @@
-#           Beewi SmartClim Plugin
+#           BeeWi SmartClim Plugin
 #
 #           Author: 
 #                       Copyright (C) 2019 DavTechNet
@@ -94,14 +94,6 @@ class SensorData:
         self.__battery = 0
         self.parse_data ( raw_data )
 
-    def __init__ ( self ):
-        """
-        Initialize the values
-        """
-        self.__temperature = 0.0
-        self.__humidity = 0
-        self.__battery = 0
-
     def get_temperature ( self ) -> float:
         """
         Get the current temperature
@@ -188,14 +180,8 @@ class BasePlugin:
         log_message ( LogLevel.Notice, "Plugin has " + str ( len ( Devices ) ) + " devices associated with it." )
         Domoticz.Heartbeat ( 20 )
 
-        try:
-            temperature, humidity, battery = self.getActualValues ( self.hci_device, self.__mac_addr )
-            Devices [ self.__unit ].Update ( nValue = 0, sValue = str ( temperature ) + ";" + str ( humidity ),
-                                             TypeName = "Temp+Hum"
-                                             )
-            self.__set_next_measure ( True )
-        except (RuntimeError, NameError, TypeError):
-            log_message ( LogLevel.Error, "Error" )
+        self.__set_next_measure ( True )
+        asyncio.run ( self.__read_smart_clim_values_and_update ( ) )
         log_message ( LogLevel.Notice, "Leaving on start" )
 
     def onStop ( self ):
@@ -244,11 +230,11 @@ class BasePlugin:
                                                    )
             sValue = str ( sensor_data.get_temperature ( ) ) + ";" + str ( sensor_data.get_humidity ( )
                                                                            ) + ";" + str ( humStat )
-            Devices [ self.__unit ].Update ( nValue = 0, sValue = sValue,
+            Devices [ self.__unit ].Update ( nValue = 0, sValue = sValue, TypeName = "Temp+Hum",
                                              BatteryLevel = sensor_data.get_battery_level ( ), Log = True
                                              )
 
-    def __set_next_measure ( self, add_random_value: bool = False ):
+    def __set_next_measure ( self, add_random_value: bool = False ) -> None:
         """
         Calculate the next date and time for read the sensor values
         :param add_random_value: True to add a random value in the range configured
@@ -261,7 +247,7 @@ class BasePlugin:
         else:
             self.__next_measure = datetime.now ( ) + timedelta ( minutes = self.__delay_in_minutes )
 
-    def __create_device ( self ):
+    def __create_device ( self ) -> None:
         """
         Create the device
         :return: None
