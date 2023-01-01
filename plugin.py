@@ -49,7 +49,7 @@ from datetime import timedelta
 from enum import Enum, unique
 from random import randrange
 
-import DomoticzEx as Domoticz
+import Domoticz
 from bleak import BleakClient
 
 # BLE UUID
@@ -152,8 +152,6 @@ class BasePlugin:
     __delay_in_minutes: int = 15
     # Index of the device
     __unit = 1
-    # Device identifier
-    __device_id: str = "BeeWiSmartClien"
 
     def __init__ ( self ):
         self.__next_measure = datetime.now ( )
@@ -224,23 +222,21 @@ class BasePlugin:
         Read current values and update domoticz database
         :return: Nothing
         """
-        log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update called" )
         async with BleakClient ( self.__mac_addr ) as client:
-            log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update try to read" )
             resp = await client.read_gatt_char ( UUID_GET_VALUES )
-            log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update values readed" )
             sensor_data = SensorData ( resp )
             humStat = self.__get_humidity_status ( sensor_data.get_temperature ( ),
                                                    sensor_data.get_humidity ( )
                                                    )
-            log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update humidity stat" )
             sValue = str ( sensor_data.get_temperature ( ) ) + ";" + str ( sensor_data.get_humidity ( )
                                                                            ) + ";" + str ( humStat )
 
-            Devices [ self.__device_id ].Unit [ 1 ].nValue = 0
-            Devices [ self.__device_id ].Unit [ 1 ].sValue = sValue
-            Devices [ self.__device_id ].Unit [ 1 ].BatteryLevel = sensor_data.get_battery_level ( )
-            Devices [ self.__device_id ].Unit [ 1 ].Update ( Log = True )
+            Devices [ self.__unit ].Update ( nValue = 0, sValue = sValue,
+                                             BatteryLevel = sensor_data.get_battery_level ( )
+                                             )
+            log_message ( LogLevel.Notice,
+                          "Update " + str ( 0 ) + ":'" + str ( sValue ) + "' (" + Devices [ self.__unit ].Name + ")"
+                          )
 
     def __set_next_measure ( self, add_random_value: bool = False ) -> None:
         """
@@ -260,9 +256,9 @@ class BasePlugin:
         Create the device
         :return: None
         """
-        Domoticz.Unit ( Name = "SmartClim", DeviceID = self.__device_id, Unit = self.__unit, TypeName = "Temp+Hum",
-                        Subtype = 1, Switchtype = 0, Description = "Sensor SmartClim", Used = 1
-                        ).Create ( )
+        Domoticz.Device ( Name = "SmartClim", Unit = self.__unit, TypeName = "Temp+Hum", Subtype = 1, Switchtype = 0,
+                          Description = "Capteur SmartClim", Used = 1
+                          ).Create ( )
         log_message ( LogLevel.Notice, "Device created." )
 
     @staticmethod
