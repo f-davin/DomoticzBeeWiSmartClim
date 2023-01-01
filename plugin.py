@@ -42,14 +42,23 @@
 </plugin>
 """
 
-import subprocess
+import asyncio
 from builtins import str
 from datetime import datetime
 from datetime import timedelta
 from enum import Enum, unique
-from subprocess import check_output, STDOUT
 
 import DomoticzEx as Domoticz
+from bleak import BleakClient
+
+# BLE UUID
+UUID_MANUFACTURER_NAME = "00002a29-0000-1000-8000-00805f9b34fb"  # Handle 0x0025
+UUID_SOFTWARE_REV = "00002a28-0000-1000-8000-00805f9b34fb"  # Handle 0x0023
+UUID_SERIAL_NUMBER = "00002a25-0000-1000-8000-00805f9b34fb"  # Handle 0x001d
+UUID_MODEL = "00002a24-0000-1000-8000-00805f9b34fb"  # Handle 0x001b
+UUID_FIRMWARE_REV = "00002a26-0000-1000-8000-00805f9b34fb"  # Handle 0x001f
+UUID_HARDWARE_REV = "00002a27-0000-1000-8000-00805f9b34fb"  # Handle 0X0021
+UUID_GET_VALUES = "a8b3fb43-4834-4051-89d0-3de95cddd318"  # Handle 0x003f
 
 
 @unique
@@ -63,7 +72,7 @@ class LogLevel ( Enum ):
 
 
 @unique
-class HumidityStatus:
+class HumidityStatus ( Enum ):
     """
     Enumeration of the different status of humidity
     """
@@ -83,6 +92,14 @@ class SensorData:
         self.__humidity = 0
         self.__battery = 0
         self.parse_data ( raw_data )
+
+    def __init__ ( self ):
+        """
+        Initialize the values
+        """
+        self.__temperature = 0.0
+        self.__humidity = 0
+        self.__battery = 0
 
     def get_temperature ( self ) -> float:
         """
@@ -133,36 +150,41 @@ class SensorData:
 
 
 class BasePlugin:
-    enabled = False
-
-    # Delay in minutes between two measures
-    iDelayInMin = 1
-    # Default delay in minutes between two measures
-    iDefaultDelayInMin = 15
+    # __enabled = False
+    # MAC address
+    __mac_addr: str = "xx"
     # date time of the next measure
-    nextMeasure = datetime.now ( )
+    __next_measure: datetime
+    # Delay in minutes between two measures
+    __delay_in_minutes: int = 15
+
     # Index of the device
     iUnit = 1
     # Default HCI device
     hci_device = 'hci0'
-    # MAC address of the device
-    device_address = "xx"
-
-    def setNextMeasure ( self ):
-        self.nextMeasure = datetime.now ( ) + timedelta ( minutes = self.iDelayInMin )
 
     def __init__ ( self ):
+        self.__next_measure = datetime.now ( )
         return
 
     def onStart ( self ):
         log_message ( LogLevel.Notice, "onStart called" )
-        # Check if debug mode is active
-        self.device_address = Parameters [ "Mode1" ]
+        # Parse parameters
+        self.__mac_addr = Parameters [ "Mode1" ]
+        try:
+            config_val = int ( Parameters [ "Mode2" ] )
+            self.__delay_in_minutes = config_val
+        except ValueError:
+            pass
+        log_message ( LogLevel.Notice, "Delay between measures " + str ( self.__delay_in_minutes ) + " minutes." )
+
+        # Check if debug mode is activated
         if Parameters [ "Mode6" ] == "Debug":
             Domoticz.Debugging ( 1 )
-            log_message ( LogLevel.Debug, "Debugger started, use 'telnet 0.0.0.0 4444' to connect" )
-            import rpdb
-            rpdb.set_trace ( )
+            dump_config_to_log ( )
+            # log_message ( LogLevel.Debug, "Debugger started, use 'telnet 0.0.0.0 4444' to connect" )
+            # import rpdb
+            # rpdb.set_trace ( )
         if len ( Devices ) == 0:
             Domoticz.Device ( Name = "SmartClim", Unit = self.iUnit, TypeName = "Temp+Hum", Subtype = 1, Switchtype = 0,
                               Description = "Capteur SmartClim", Used = 1
@@ -171,23 +193,17 @@ class BasePlugin:
         log_message ( LogLevel.Notice, "Plugin has " + str ( len ( Devices ) ) + " devices associated with it." )
 
         try:
-            temperature, humidity, battery = self.getActualValues ( self.hci_device, self.device_address )
+            temperature, humidity, battery = self.getActualValues ( self.hci_device, self.__mac_addr )
             Devices [ self.iUnit ].Update ( nValue = 0, sValue = str ( temperature ) + ";" + str ( humidity ),
                                             TypeName = "Temp+Hum"
                                             )
-            self.nextMeasure = datetime.now ( ) + timedelta ( minutes = random.randrange ( 1, self.iDelayInMin, 1 ) )
+            self.__next_measure = datetime.now ( ) + timedelta (
+                minutes = random.randrange ( 1, self.__delay_in_minutes, 1 )
+                )
         except (RuntimeError, NameError, TypeError):
             log_message ( LogLevel.Error, "Error" )
 
-        dump_config_to_log ( )
-        Domoticz.Heartbeat ( 30 )
-
-        # Update the delay between the measures
-        try:
-            self.iDelayInMin = int ( Parameters [ "Mode2" ] )
-        except ValueError:
-            self.iDelayInMin = self.iDefaultDelayInMin
-        log_message ( LogLevel.Notice, "Delay between measures " + str ( self.iDelayInMin ) + " minutes." )
+        Domoticz.Heartbeat ( 20 )
         log_message ( LogLevel.Notice, "Leaving on start" )
 
     def onStop ( self ):
@@ -199,7 +215,7 @@ class BasePlugin:
     def onMessage ( self, Connection, Data ):
         log_message ( LogLevel.Notice, "onMessage called" )
 
-    def onCommand ( self, Unit, Command, Level, Hue ):
+    def onCommand ( self, Unit, Command, Level, Color ):
         log_message ( LogLevel.Notice,
                       "onCommand called for Unit " + str ( Unit ) + ": Parameter '" + str ( Command
                                                                                             ) + "', Level: " + str (
@@ -218,64 +234,40 @@ class BasePlugin:
 
     def onHeartbeat ( self ):
         log_message ( LogLevel.Notice, "onHeartbeat called" )
-        if datetime.now ( ) > self.nextMeasure:
-            # We immediatly program next connection for tomorrow, if there is a problem, we will reprogram it sooner
-            try:
-                self.setNextMeasure ( )
-                self.onGetSmartClimValues ( )
-            except:
+        if datetime.now ( ) > self.__next_measure:
+            # We immediately program next connection for tomorrow, if there is a problem, we will reprogram it sooner
+            self.__set_next_measure ( )
+            asyncio.run ( self.__read_smart_clim_values_and_update ( ) )
 
-                try:
-                    log_message ( LogLevel.Notice, "Restart the Bluetooth device" )
-                    self.cycleHci ( )
-                    log_message ( LogLevel.Notice, "Bluetooth device restarted" )
-                except:
-                    log_message ( LogLevel.Error, "Error on restart" )
+    async def __read_smart_clim_values_and_update ( self ) -> None:
+        """
+        Read current values and update domoticz database
+        :return: Nothing
+        """
+        async with BleakClient ( self.__mac_addr ) as client:
+            resp = await client.read_gatt_char ( UUID_GET_VALUES )
+            sensor_data = SensorData ( resp )
+            humStat = self.__get_humidity_status ( sensor_data.get_temperature ( ),
+                                                   sensor_data.get_humidity ( )
+                                                   )
+            sValue = str ( sensor_data.get_temperature ( ) ) + ";" + str ( sensor_data.get_humidity ( )
+                                                                           ) + ";" + str ( humStat )
+            Devices [ self.iUnit ].Update ( nValue = 0, sValue = sValue,
+                                            BatteryLevel = sensor_data.get_battery_level ( ), Log = True
+                                            )
 
-    def onGetSmartClimValues ( self ):
-        temperature, humidity, battery = self.getActualValues ( self.hci_device, self.device_address )
-        humStat = self.__get_humidity_status ( temperature, humidity )
-        sValue = str ( temperature ) + ";" + str ( humidity ) + ";" + str ( humStat )
-        self.updateDevice ( 0, sValue, battery )
-
-    def updateDevice ( self, nValue, sValue, batteryLevel ):
-        Devices [ self.iUnit ].Update ( nValue = 0, sValue = str ( sValue ), BatteryLevel = batteryLevel )
-        log_message ( LogLevel.Notice,
-                      "Update " + str ( nValue ) + ":'" + str ( sValue ) + "' (" + Devices [ self.iUnit ].Name + ")"
-                      )
-
-    def getActualValues ( self, s_hci, s_mac ):
-        # read the value characteristic (read handle is 0x003f)
-        # handle returns 10 byte hex block containing temperature, humidity and batery level
-        # the temperature consists of 3 bytes
-        # Posivive value: byte 1 & 2 present the tenfold of the temperature
-        # Negative value: byte 2 - byte 3 present the tenfold of the temperature
-        try:
-            raw_input = check_output ( [ 'gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle=0x003f' ],
-                                       shell = False, stderr = STDOUT
-                                       );
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError (
-                "command '{}' return with error (code {}): {}".format ( e.cmd, e.returncode, e.output )
-                )
-        if ':' in str ( raw_input ):
-            raw_list = str ( raw_input ).split ( ':' )
-            raw_data = raw_list [ 1 ].split ( '\\n' ) [ 0 ]
-            raw_data = raw_data.strip ( )
-            octet_list = raw_data.split ( ' ' )
-            t0 = int ( octet_list [ 0 ], 16 )
-            t1 = int ( octet_list [ 1 ], 16 )
-            t2 = int ( octet_list [ 2 ], 16 )
-            temperature = ((t2 * 255) + t1) / 10.0
-            humidity = int ( octet_list [ 4 ], 16 )
-            battery = int ( octet_list [ 9 ], 16 )
-        return (temperature, humidity, battery)
+    def __set_next_measure ( self ):
+        """
+        Calculate the next date and time for read the sensor values
+        :return:
+        """
+        self.__next_measure = datetime.now ( ) + timedelta ( minutes = self.__delay_in_minutes )
 
     @staticmethod
     def __get_humidity_status ( temperature: float, humidity: int ) -> HumidityStatus:
         """
         Convert the humidity percent in Domoticz value
-        :param temperature: Current temperature of the room in degree celsius
+        :param temperature: Current temperature of the room in degree Celsius
         :param humidity: Current humidity of the room in percent
         :return: The humidity status
         """
