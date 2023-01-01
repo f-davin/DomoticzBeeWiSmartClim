@@ -152,6 +152,8 @@ class BasePlugin:
     __delay_in_minutes: int = 15
     # Index of the device
     __unit = 1
+    # Device identifier
+    __device_id: str = "BeeWiSmartClien"
 
     def __init__ ( self ):
         self.__next_measure = datetime.now ( )
@@ -172,7 +174,7 @@ class BasePlugin:
         if Parameters [ "Mode6" ] == "Debug":
             Domoticz.Debugging ( 1 )
             dump_config_to_log ( )
-            # log_message ( LogLevel.Debug, "Debugger started, use 'telnet 0.0.0.0 4444' to connect" )
+            # log_message ( LogLevel.Notice, "Debugger started, use 'telnet 0.0.0.0 4444' to connect" )
             # import rpdb
             # rpdb.set_trace ( )
         if len ( Devices ) == 0:
@@ -222,17 +224,23 @@ class BasePlugin:
         Read current values and update domoticz database
         :return: Nothing
         """
+        log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update called" )
         async with BleakClient ( self.__mac_addr ) as client:
+            log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update try to read" )
             resp = await client.read_gatt_char ( UUID_GET_VALUES )
+            log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update values readed" )
             sensor_data = SensorData ( resp )
             humStat = self.__get_humidity_status ( sensor_data.get_temperature ( ),
                                                    sensor_data.get_humidity ( )
                                                    )
+            log_message ( LogLevel.Debug, "__read_smart_clim_values_and_update humidity stat" )
             sValue = str ( sensor_data.get_temperature ( ) ) + ";" + str ( sensor_data.get_humidity ( )
                                                                            ) + ";" + str ( humStat )
-            Devices [ self.__unit ].Update ( nValue = 0, sValue = sValue, TypeName = "Temp+Hum",
-                                             BatteryLevel = sensor_data.get_battery_level ( ), Log = True
-                                             )
+
+            Devices [ self.__device_id ].Unit [ 1 ].nValue = 0
+            Devices [ self.__device_id ].Unit [ 1 ].sValue = sValue
+            Devices [ self.__device_id ].Unit [ 1 ].BatteryLevel = sensor_data.get_battery_level ( )
+            Devices [ self.__device_id ].Unit [ 1 ].Update ( Log = True )
 
     def __set_next_measure ( self, add_random_value: bool = False ) -> None:
         """
@@ -242,7 +250,7 @@ class BasePlugin:
         """
         if add_random_value:
             self.__next_measure = datetime.now ( ) + timedelta (
-                minutes = randrange ( 1, self.__delay_in_minutes, 1 )
+                minutes = randrange ( 0, self.__delay_in_minutes, 1 )
                 )
         else:
             self.__next_measure = datetime.now ( ) + timedelta ( minutes = self.__delay_in_minutes )
@@ -252,10 +260,9 @@ class BasePlugin:
         Create the device
         :return: None
         """
-        Domoticz.Device ( Name = "SmartClim", Unit = self.__unit, TypeName = "Temp+Hum", Subtype = 1,
-                          Switchtype = 0,
-                          Description = "Sensor SmartClim", Used = 1
-                          ).Create ( )
+        Domoticz.Unit ( Name = "SmartClim", DeviceID = self.__device_id, Unit = self.__unit, TypeName = "Temp+Hum",
+                        Subtype = 1, Switchtype = 0, Description = "Sensor SmartClim", Used = 1
+                        ).Create ( )
         log_message ( LogLevel.Notice, "Device created." )
 
     @staticmethod
