@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 #   A python script to read actual vales from the BeeWi 'BBW200 - Smart Temperature & Humidity Sensor'
 #   BeeWi website: http://www.bee-wi.com/en.cfm
@@ -27,140 +27,124 @@
 #
 #   note: this needs to be called with 'sudo' or by root in order to work with some of the hci commands
 
-from __future__ import print_function
-from builtins import str
-from builtins import chr
-import os
+import asyncio
 import sys
-from subprocess import call, check_output, STDOUT, CalledProcessError
-import time
 
-def cycleHCI(s_hci) :
-   # maybe a useless time waster but it makes sure our hci is starting fresh and clean
-   # nope in fact we need to call this before each time we do hci or gatt stuff or it doesn't work
-   call(['hciconfig', 's_hci', 'down'])
-   time.sleep(0.1)
-   call(['hciconfig', 's_hci', 'up'])
-   time.sleep(0.1)
+from bleak import BleakClient
 
-def getResultStringForDeviceMacHandle(s_hci, s_mac, s_handle) :
-   # Read the string from handle
-   try:
-      raw_input = check_output(['gatttool', '-i', s_hci, '-b', s_mac, '--char-read', '--handle='+s_handle], shell=False, stderr=STDOUT);
-   except subprocess.CalledProcessError as e:
-      raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
-   result_string = ''
-   if ':' in str(raw_input):
-      raw_list=str(raw_input).split(':')
-      raw_data=raw_list[1].split('\\n')[0]
-      raw_data=raw_data.strip()
-      octet_list=raw_data.split(' ')
-      for octet in octet_list :
-         j = int(octet, 16)
-         if j > 31 and j < 127 : result_string += str(chr(j))
-   return result_string
+# Text for the commands
+STAT_COMMAND = 'stat'
+RAW_COMMAND = 'raw'
+VAL_COMMAND = 'val'
 
-def getActualValues(s_hci, s_mac) :
-   # read the value characteristic (read handle is 0x003f)
-   # handle returns 10 byte hex block containing temperature, humidity and batery level
-   # the temperature consists of 3 bytes
-   # Posivive value: byte 1 & 2 present the tenfold of the temperature
-   # Negative value: byte 2 - byte 3 present the tenfold of the temperature
-   raw_input = check_output(['gatttool', '-i', '"' + s_hci + '"', '-b', '"' + s_mac + '"', '--char-read', '--handle=0x003f']);
-   if ':' in str(raw_input):
-      raw_list    = str(raw_input).split(':')
-      raw_data    = raw_list[1].split('\\n')[0]
-      raw_data    = raw_data.strip()
-      octet_list  = raw_data.split(' ')
-      t0 = int(octet_list[0], 16)
-      t1 = int(octet_list[1], 16)
-      t2 = int(octet_list[2], 16)
-      if t2 == 255:
-         temperature = (t1-t2)/10.0
-      else:
-         temperature = ((t0*255)+t1)/10.0
-      humidity    = int(octet_list[4], 16)
-      battery     = int(octet_list[9], 16)
-   return (temperature, humidity, battery)
+UUID_MANUFACTURER_NAME = "00002a29-0000-1000-8000-00805f9b34fb"  # Handle 0x0025
+UUID_SOFTWARE_REV = "00002a28-0000-1000-8000-00805f9b34fb"  # Handle 0x0023
+UUID_SERIAL_NUMBER = "00002a25-0000-1000-8000-00805f9b34fb"  # Handle 0x001d
+UUID_MODEL = "00002a24-0000-1000-8000-00805f9b34fb"  # Handle 0x001b
+UUID_FIRMWARE_REV = "00002a26-0000-1000-8000-00805f9b34fb"  # Handle 0x001f
+UUID_HARDWARE_REV = "00002a27-0000-1000-8000-00805f9b34fb"  # Handle 0X0021
+UUID_GET_VALUES = "a8b3fb43-4834-4051-89d0-3de95cddd318"  # Handle 0x003f
 
-def getDeviceInfo(s_hci, s_mac) :
-   # BeeWi Smart Climate handles
-   # 0x0003 :    SmartClim name : 'Smart Clim'
-   # 0x001b :      model number : 'BeeWi BBW200\00'
-   # 0x001d :     serial number : '\00'
-   # 0x001f : firmware revision : 'V1.5 R140514\00'
-   # 0x0021 : hardware revision : '1.0\00'
-   # 0x0023 : software revision : '\00'
-   # 0x0025 :      manufacturer : 'Voxland\00'
 
-   Name             = getResultStringForDeviceMacHandle(s_hci, s_mac, '0x0003')
-   ModelNumber      = getResultStringForDeviceMacHandle(s_hci, s_mac, '0x001b')
-   SerialNumber     = getResultStringForDeviceMacHandle(s_hci, s_mac, '0x001d')
-   FirmwareRevision = getResultStringForDeviceMacHandle(s_hci, s_mac, '0x001f')
-   HardwareRevision = getResultStringForDeviceMacHandle(s_hci, s_mac, '0x0021')
-   SoftwareRevision = getResultStringForDeviceMacHandle(s_hci, s_mac, '0x0023')
-   Manufacturer     = getResultStringForDeviceMacHandle(s_hci, s_mac, '0x0025')
-   return (Name, ModelNumber, SerialNumber, FirmwareRevision, HardwareRevision, SoftwareRevision, Manufacturer)
+class SensorData:
+    def __init__ ( self, raw_data: bytearray ):
+        self.__temperature = 0.0
+        self.__humidity = 0
+        self.__battery = 0
+        self.parse_data ( raw_data )
 
-def printHelp() :
-   print ('Correct usage is "[sudo] beewiclim.py <device address> <command> [argument]"')
-   print ('       <device address> in the format XX:XX:XX:XX:XX:XX')
-   print ('       Commands:  stat          - Get status')
-   print ('       Commands:  val           - Get values (temperature, humidity, battery)')
-   print ('       Commands:  raw           - Get values (temperature, humidity, battery)')
-   print ('       [hci device] i.e. hci1 in case of multiple devices')
-   print ('')
+    def get_temperature ( self ) -> float:
+        return self.__temperature
 
-if __name__=='__main__' :
-   if os.geteuid() != 0 :
-      print ('WARNING: This script may not work correctly without sudo / root. Sorry.')
-   if len(sys.argv) < 3 :
-      printHelp()
-   else :
-      hci_device = 'hci0' # default
-      device_address = sys.argv[1]
-      command = sys.argv[2]
-      command = command.lower()
-      error = ''
-      if len(sys.argv) == 4 : hci_device = sys.argv[3]
-      hci_device = hci_device.lower()
+    def get_humidity ( self ) -> int:
+        return self.__humidity
 
-      # address shortcuts
-      if device_address == 'sc1' : device_address = '5C:31:3E:XX:XX:XX'
-      if device_address == 'sc2' : device_address = 'D0:5F:B8:XX:XX:XX'
+    def get_battery_level ( self ) -> int:
+        return self.__battery
 
-      if len(device_address) != 17 :
-         print ('ERROR: device address must be in the format NN:NN:NN:NN:NN:NN')
-         exit()
-      if 'stat' in command :
-         name, model, serial, frevision, hrevision, srevision, manufacturer = getDeviceInfo(hci_device, device_address)
-         temperature, humidity, battery = getActualValues(hci_device, device_address)
-         print ('-------------------------------------')
-         print ('Device name       = ' + name)
-         print ('Model number      = ' + model)
-         print ('Serial number     = ' + serial)
-         print ('Firmware revision = ' + frevision)
-         print ('Hardware revision = ' + hrevision)
-         print ('Software revision = ' + srevision)
-         print ('Manufaturer       = ' + manufacturer)
-         print ('-------------------------------------')
-         print ('Temperature       = ' + str(temperature) + u'\u2103') # encode("utf8") needed on raspberry
-         print ('Humidity          = ' + str(humidity) + '%')
-         print ('Battery           = ' + str(battery) + '%')
-         print ('-------------------------------------')
-      if 'val' in command :
-         temperature, humidity, battery = getActualValues(hci_device, device_address)
-         print ('-------------------------------------')
-         degree =u'\u2103'.encode("utf-8");
-         print ('Temperature       = ' + str(temperature) + degree)
-         print ('Humidity          = ' + str(humidity) + '%')
-         print ('Battery           = ' + str(battery) + '%')
-         print ('-------------------------------------')
-      if 'raw' in command :
-         temperature, humidity, battery = getActualValues(hci_device, device_address)
-         print (str(temperature),str(humidity),str(battery))
-      if error != '' :
-         if error == 'off' : error = 'ERROR: SmartClim ' + device_address
-         print (error)
-   exit(0)
-   
+    def parse_data ( self, raw_data: bytearray ):
+        if len ( raw_data ) != 10:
+            raise Exception ( 'Wrong size to decode data' )
+        # handle returns 10 byte hex block containing temperature, humidity and battery level
+        # the temperature consists of 3 bytes
+        # Positive value: byte 1 & 2 present the tenfold of the temperature
+        # Negative value: byte 2 - byte 3 present the tenfold of the temperature
+        # t0 = val [ 0 ]
+        # t1 = val [ 1 ]
+        # t2 = val [ 2 ]
+        # if t2 == 255:
+        #   temperature = (t1 - t2) / 10.0
+        # else:
+        #   temperature = ((t0 * 255) + t1) / 10.0
+        temperature = raw_data [ 2 ] + raw_data [ 1 ]
+        if temperature > 0x8000:
+            temperature = temperature - 0x10000
+        self.__temperature = temperature / 10.0
+        self.__humidity = raw_data [ 4 ]
+        self.__battery = raw_data [ 9 ]
+
+
+def printHelp ( ):
+    print ( 'Correct usage is "beewiclim.py <device address> <command> [argument]"' )
+    print ( '       <device address> in the format XX:XX:XX:XX:XX:XX' )
+    print ( '       Commands:  stat          - Get status' )
+    print ( '       Commands:  val           - Get values (temperature, humidity, battery)' )
+    print ( '       Commands:  raw           - Get values (temperature, humidity, battery)' )
+    print ( '' )
+
+
+async def exec ( argv ):
+    client_mac_addr = argv [ 0 ]
+    command = argv [ 1 ].lower ( )
+
+    # Check the MAC address length
+    if len ( client_mac_addr ) != 17:
+        raise Exception ( 'ERROR: device address must be in the format NN:NN:NN:NN:NN:NN' )
+
+    # Check the command
+    if command != STAT_COMMAND and command != VAL_COMMAND and command != RAW_COMMAND:
+        raise Exception ( 'Invalid command utilization!' )
+
+    # Start the command
+    async with BleakClient ( client_mac_addr ) as client:
+        resp = await client.read_gatt_char ( UUID_GET_VALUES )
+        current_values = SensorData ( resp )
+        if RAW_COMMAND in command:
+            print ( str ( current_values.get_temperature ( ) ), str ( current_values.get_humidity ( ) ),
+                    str ( current_values.get_battery_level ( ) )
+                    )
+        elif VAL_COMMAND in command:
+            print ( '-------------------------------------' )
+            print ( 'Temperature       = {0} {1}'.format ( str ( current_values.get_temperature ( ) ), u'\u2103' ) )
+            print ( 'Humidity          = {0}%'.format ( str ( current_values.get_humidity ( ) ) ) )
+            print ( 'Battery           = {0}%'.format ( str ( current_values.get_battery_level ( ) ) ) )
+            print ( '-------------------------------------' )
+        else:
+            manufacturer = await client.read_gatt_char ( UUID_MANUFACTURER_NAME )
+            model = await client.read_gatt_char ( UUID_MODEL )
+            serial = await client.read_gatt_char ( UUID_SERIAL_NUMBER )
+            fw_revision = await client.read_gatt_char ( UUID_FIRMWARE_REV )
+            hw_revision = await client.read_gatt_char ( UUID_HARDWARE_REV )
+            soft_revision = await client.read_gatt_char ( UUID_SOFTWARE_REV )
+            print ( '-------------------------------------' )
+            # print ( 'Device name       = ' + name )
+            print ( 'Model number      = {0}'.format ( model.decode ( 'utf-8' ) ) )
+            print ( 'Serial number     = {0}'.format ( serial.decode ( 'utf-8' ) ) )
+            print ( 'Firmware revision = {0}'.format ( fw_revision.decode ( 'utf-8' ) ) )
+            print ( 'Hardware revision = {0}'.format ( hw_revision.decode ( 'utf-8' ) ) )
+            print ( 'Manufacturer      = {0}'.format ( manufacturer.decode ( 'utf-8' ) ) )
+            print ( 'Software revision = {0}'.format ( soft_revision.decode ( 'utf-8' ) ) )
+            print ( '-------------------------------------' )
+            print ( 'Temperature       = {0} {1}'.format ( str ( current_values.get_temperature ( ) ), u'\u2103' ) )
+            print ( 'Humidity          = {0}%'.format ( str ( current_values.get_humidity ( ) ) ) )
+            print ( 'Battery           = {0}%'.format ( str ( current_values.get_battery_level ( ) ) ) )
+            print ( '-------------------------------------' )
+
+
+if __name__ == '__main__':
+    if len ( sys.argv ) != 3:
+        printHelp ( )
+        exit ( -1 )
+    else:
+        asyncio.run ( exec ( argv = sys.argv [ 1: ] ) )
+        exit ( 0 )
