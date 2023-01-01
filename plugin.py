@@ -47,6 +47,7 @@ from builtins import str
 from datetime import datetime
 from datetime import timedelta
 from enum import Enum, unique
+from random import randrange
 
 import DomoticzEx as Domoticz
 from bleak import BleakClient
@@ -157,11 +158,8 @@ class BasePlugin:
     __next_measure: datetime
     # Delay in minutes between two measures
     __delay_in_minutes: int = 15
-
     # Index of the device
-    iUnit = 1
-    # Default HCI device
-    hci_device = 'hci0'
+    __unit = 1
 
     def __init__ ( self ):
         self.__next_measure = datetime.now ( )
@@ -186,24 +184,18 @@ class BasePlugin:
             # import rpdb
             # rpdb.set_trace ( )
         if len ( Devices ) == 0:
-            Domoticz.Device ( Name = "SmartClim", Unit = self.iUnit, TypeName = "Temp+Hum", Subtype = 1, Switchtype = 0,
-                              Description = "Capteur SmartClim", Used = 1
-                              ).Create ( )
-            log_message ( LogLevel.Notice, "Device created." )
+            self.__create_device ( )
         log_message ( LogLevel.Notice, "Plugin has " + str ( len ( Devices ) ) + " devices associated with it." )
+        Domoticz.Heartbeat ( 20 )
 
         try:
             temperature, humidity, battery = self.getActualValues ( self.hci_device, self.__mac_addr )
-            Devices [ self.iUnit ].Update ( nValue = 0, sValue = str ( temperature ) + ";" + str ( humidity ),
-                                            TypeName = "Temp+Hum"
-                                            )
-            self.__next_measure = datetime.now ( ) + timedelta (
-                minutes = random.randrange ( 1, self.__delay_in_minutes, 1 )
-                )
+            Devices [ self.__unit ].Update ( nValue = 0, sValue = str ( temperature ) + ";" + str ( humidity ),
+                                             TypeName = "Temp+Hum"
+                                             )
+            self.__set_next_measure ( True )
         except (RuntimeError, NameError, TypeError):
             log_message ( LogLevel.Error, "Error" )
-
-        Domoticz.Heartbeat ( 20 )
         log_message ( LogLevel.Notice, "Leaving on start" )
 
     def onStop ( self ):
@@ -252,16 +244,33 @@ class BasePlugin:
                                                    )
             sValue = str ( sensor_data.get_temperature ( ) ) + ";" + str ( sensor_data.get_humidity ( )
                                                                            ) + ";" + str ( humStat )
-            Devices [ self.iUnit ].Update ( nValue = 0, sValue = sValue,
-                                            BatteryLevel = sensor_data.get_battery_level ( ), Log = True
-                                            )
+            Devices [ self.__unit ].Update ( nValue = 0, sValue = sValue,
+                                             BatteryLevel = sensor_data.get_battery_level ( ), Log = True
+                                             )
 
-    def __set_next_measure ( self ):
+    def __set_next_measure ( self, add_random_value: bool = False ):
         """
         Calculate the next date and time for read the sensor values
-        :return:
+        :param add_random_value: True to add a random value in the range configured
+        :return: None
         """
-        self.__next_measure = datetime.now ( ) + timedelta ( minutes = self.__delay_in_minutes )
+        if add_random_value:
+            self.__next_measure = datetime.now ( ) + timedelta (
+                minutes = randrange ( 1, self.__delay_in_minutes, 1 )
+                )
+        else:
+            self.__next_measure = datetime.now ( ) + timedelta ( minutes = self.__delay_in_minutes )
+
+    def __create_device ( self ):
+        """
+        Create the device
+        :return: None
+        """
+        Domoticz.Device ( Name = "SmartClim", Unit = self.__unit, TypeName = "Temp+Hum", Subtype = 1,
+                          Switchtype = 0,
+                          Description = "Sensor SmartClim", Used = 1
+                          ).Create ( )
+        log_message ( LogLevel.Notice, "Device created." )
 
     @staticmethod
     def __get_humidity_status ( temperature: float, humidity: int ) -> HumidityStatus:
